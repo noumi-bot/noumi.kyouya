@@ -18,11 +18,18 @@ const CONFIG = {
   // 通知先（レポート送信先）
   REPORT_TO: 'noumi@cs-relations.co.jp',
 
-  // Anthropic
+  // 採点に使うAIプロバイダ: 'gemini'（Google・無料枠あり）／'anthropic'（Claude）
+  PROVIDER: 'gemini',
+
+  // Anthropic（PROVIDER='anthropic' のとき使用）
   MODEL: 'claude-sonnet-4-5',       // ← 利用可能なモデルIDに合わせる
   MAX_TOKENS: 2000,
   ANTHROPIC_VERSION: '2023-06-01',
   WORKSPACE_ID: '',                 // 組織レベルのキーを使う場合、ここにワークスペースID（wrksp_...）を設定
+
+  // Gemini（PROVIDER='gemini' のとき使用）
+  GEMINI_MODEL: 'gemini-2.0-flash', // 無料枠で使えるモデル。必要なら gemini-2.5-flash 等に変更
+  // ※APIキーはスクリプト プロパティ GEMINI_API_KEY に登録（Google AI Studioで無料発行）
 
   // Drive監視（Step1以降）。未設定なら取得はスキップ＝安全に何もしない
   WATCH_FOLDER_ID: '1xyCekAHVr_60GzFu0GXRpUFodrqllJ-e', // 未処理JSONを置くフォルダのID
@@ -265,20 +272,66 @@ function computeSpeechRatio_(segments, interviewerSpeaker) {
 
 /* ===================== 採点（Claude API） ===================== */
 
+/** 採点の入口。PROVIDER に応じて Gemini / Anthropic を呼び分ける。 */
 function scoreTranscript_(t, ratio) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY が未設定です（スクリプト プロパティに登録してください）');
+  const userMsg = buildUserMsg_(t, ratio);
+  const text = (CONFIG.PROVIDER === 'anthropic')
+    ? callAnthropic_(userMsg)
+    : callGemini_(userMsg);
+  return parseAiJson_(text);
+}
 
+/** 文字起こし＋メタを1本のユーザメッセージに整形。 */
+function buildUserMsg_(t, ratio) {
   const dialogue = t.segments.map(function (s) {
     return '[' + fmtTime_(s.start) + '] ' + s.speaker + ': ' + s.content;
   }).join('\n');
-
-  const userMsg =
-    '面接官: ' + t.member + '\n' +
+  return '面接官: ' + t.member + '\n' +
     '面談種別: ' + t.type + '\n' +
     '面接官の発話比率(interviewer_ratio): ' + Math.round(ratio.interviewerRatio * 100) + '%'
       + '（算出根拠: ' + ratio.basis + '）\n\n' +
     '=== 文字起こし ===\n' + dialogue;
+}
+
+/** Gemini（Google AI Studio・無料枠）で採点。JSON強制出力。 */
+function callGemini_(userMsg) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error('GEMINI_API_KEY が未設定です（Google AI Studioで発行し、スクリプト プロパティに登録してください）');
+
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/'
+    + encodeURIComponent(CONFIG.GEMINI_MODEL) + ':generateContent?key=' + encodeURIComponent(apiKey);
+
+  const payload = {
+    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [{ role: 'user', parts: [{ text: userMsg }] }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: CONFIG.MAX_TOKENS,
+      responseMimeType: 'application/json',  // JSONのみを返させる
+    },
+  };
+
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  });
+
+  const code = res.getResponseCode();
+  if (code !== 200) throw new Error('Gemini API エラー ' + code + ': ' + res.getContentText());
+
+  const body = JSON.parse(res.getContentText());
+  const cand = body.candidates && body.candidates[0];
+  const text = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+  if (!text) throw new Error('Gemini 応答が空です: ' + res.getContentText());
+  return text;
+}
+
+/** Anthropic（Claude）で採点。 */
+function callAnthropic_(userMsg) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY が未設定です（スクリプト プロパティに登録してください）');
 
   const payload = {
     model: CONFIG.MODEL,
@@ -303,7 +356,7 @@ function scoreTranscript_(t, ratio) {
 
   const body = JSON.parse(res.getContentText());
   const text = (body.content && body.content[0] && body.content[0].text) || '';
-  return parseAiJson_(text);
+  return text;
 }
 
 function parseAiJson_(text) {
