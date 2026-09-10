@@ -494,6 +494,28 @@ function esc_(str) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/* ===================== 診断 ===================== */
+
+/**
+ * 監視フォルダの中身を全部ログに出す。「新規なし」の原因切り分け用。
+ * ここでファイル名・拡張子を見れば、拾えない理由（rtf化・拡張子違い等）が分かる。
+ */
+function debugListWatchFolder() {
+  if (!CONFIG.WATCH_FOLDER_ID) { Logger.log('WATCH_FOLDER_ID 未設定'); return; }
+  const folder = DriveApp.getFolderById(CONFIG.WATCH_FOLDER_ID);
+  Logger.log('フォルダ名: ' + folder.getName());
+  const files = folder.getFiles();
+  let n = 0;
+  while (files.hasNext()) {
+    const f = files.next();
+    const name = f.getName();
+    const okExt = /\.json$/i.test(name) || /\.txt$/i.test(name);
+    Logger.log((++n) + '. ' + name + '  [MIME:' + f.getMimeType() + ']  対象:' + (okExt ? 'YES' : 'NO（拡張子が.json/.txtでない）'));
+  }
+  if (n === 0) Logger.log('※ このフォルダにファイルが1つもありません（置き場所ちがい／別アカウントの可能性）');
+  else Logger.log('合計 ' + n + ' 件。対象:YES が無ければ拡張子が原因です。');
+}
+
 /* ===================== セットアップ・テスト ===================== */
 
 /**
