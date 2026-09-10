@@ -200,14 +200,36 @@ function normalizeTranscript_(json, filename) {
     json.interviewerSpeaker || json.interviewer_speaker ||
     guessInterviewer_(segments);
 
+  // ファイル名からメタ情報を補完: 「YYYYMMDD_メンバー_種別.json」形式を想定
+  const fromName = parseFilenameMeta_(filename);
+
   return {
     segments: segments,
     interviewerSpeaker: interviewerSpeaker,
-    member: json.member || json.interviewer || json.owner || '（未設定）',
-    type:   json.meetingType || json.type || '面談',
-    date:   json.date || json.datetime || Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd'),
+    member: json.member || json.interviewer || json.owner || fromName.member || '（未設定）',
+    type:   json.meetingType || json.type || fromName.type || '面談',
+    date:   json.date || json.datetime || fromName.date || Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd'),
     title:  json.title || filename,
   };
+}
+
+/**
+ * ファイル名からメタ情報を抽出する。
+ * 例: 「20260910_田川_一次面談.json」→ {date:'2026-09-10', member:'田川', type:'一次面談'}
+ * 区切りは「_」。先頭がYYYYMMDD(8桁)なら日付として解釈。過不足は空で返す。
+ */
+function parseFilenameMeta_(filename) {
+  const base = String(filename || '').replace(/\.[^.]+$/, ''); // 拡張子除去
+  const parts = base.split('_');
+  const out = { date: '', member: '', type: '' };
+  let idx = 0;
+  if (parts[0] && /^\d{8}$/.test(parts[0])) {
+    out.date = parts[0].slice(0, 4) + '-' + parts[0].slice(4, 6) + '-' + parts[0].slice(6, 8);
+    idx = 1;
+  }
+  if (parts[idx]) out.member = parts[idx];
+  if (parts[idx + 1]) out.type = parts[idx + 1];
+  return out;
 }
 
 function guessInterviewer_(segments) {
