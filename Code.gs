@@ -24,7 +24,7 @@ const CONFIG = {
   ANTHROPIC_VERSION: '2023-06-01',
 
   // Drive監視（Step1以降）。未設定なら取得はスキップ＝安全に何もしない
-  WATCH_FOLDER_ID: '',              // 未処理JSONを置くフォルダのID
+  WATCH_FOLDER_ID: '1xyCekAHVr_60GzFu0GXRpUFodrqllJ-e', // 未処理JSONを置くフォルダのID
   DONE_FOLDER_ID: '',               // 処理済みの退避先（任意。空なら移動しない）
 
   // 傾向ログ（作成済みスプレッドシートのID）※シートが無ければ自動生成
