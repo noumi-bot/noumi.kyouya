@@ -22,6 +22,7 @@ const CONFIG = {
   MODEL: 'claude-sonnet-4-5',       // ← 利用可能なモデルIDに合わせる
   MAX_TOKENS: 2000,
   ANTHROPIC_VERSION: '2023-06-01',
+  WORKSPACE_ID: '',                 // 組織レベルのキーを使う場合、ここにワークスペースID（wrksp_...）を設定
 
   // Drive監視（Step1以降）。未設定なら取得はスキップ＝安全に何もしない
   WATCH_FOLDER_ID: '1xyCekAHVr_60GzFu0GXRpUFodrqllJ-e', // 未処理JSONを置くフォルダのID
@@ -286,10 +287,13 @@ function scoreTranscript_(t, ratio) {
     messages: [{ role: 'user', content: userMsg }],
   };
 
+  const headers = { 'x-api-key': apiKey, 'anthropic-version': CONFIG.ANTHROPIC_VERSION };
+  if (CONFIG.WORKSPACE_ID) headers['anthropic-workspace-id'] = CONFIG.WORKSPACE_ID;
+
   const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post',
     contentType: 'application/json',
-    headers: { 'x-api-key': apiKey, 'anthropic-version': CONFIG.ANTHROPIC_VERSION },
+    headers: headers,
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
   });
