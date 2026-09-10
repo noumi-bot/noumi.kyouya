@@ -1,7 +1,7 @@
 /**************************************************************************************************
  * 面談フィードバック自動化（Plaud文字起こし → 8軸採点 → 個別FBメール → 傾向ログ）
  * ------------------------------------------------------------------------------------------------
- * 使い方の段階（ヘッダーの通り、経路の最終決定を待たずに実戦投入できます）
+ * 使い方の段階（経路の最終決定を待たずに実戦投入できます）
  *   Step0: sendTestReport()      … APIキー不要。サンプルFBが noumi@ に届く。体裁確認用。
  *   Step1: 文字起こしJSONをDriveに置く → runMeetingFbBatch()  … 半自動（今日から可）
  *   Step2: ブリッジで「Plaud→Drive自動書き出し」を接続し、15〜30分トリガーで全自動
@@ -9,7 +9,7 @@
  * 事前準備
  *   1) スクリプト プロパティに ANTHROPIC_API_KEY を登録
  *   2) CONFIG.MODEL を利用可能なモデルIDに合わせる（採点はSonnet系で十分・低コスト）
- *   3) setupSpreadsheet() を1回実行し、出力IDを CONFIG.LOG_SHEET_ID に設定
+ *   3) CONFIG.LOG_SHEET_ID は設定済み（下記）。対象シートが無ければ初回実行時に自動生成。
  *   4) CONFIG.WATCH_FOLDER_ID に監視用DriveフォルダのIDを設定（Step1以降）
  **************************************************************************************************/
 
@@ -27,8 +27,8 @@ const CONFIG = {
   WATCH_FOLDER_ID: '',              // 未処理JSONを置くフォルダのID
   DONE_FOLDER_ID: '',               // 処理済みの退避先（任意。空なら移動しない）
 
-  // 傾向ログ（setupSpreadsheet() で作成したスプレッドシートのID）
-  LOG_SHEET_ID: '',
+  // 傾向ログ（作成済みスプレッドシートのID）※シートが無ければ自動生成
+  LOG_SHEET_ID: '10-3E3XN3lWFScOsVxzbo-0uk0Iv-maeMP17aaroEyqA',
   LOG_SHEET_WIDE: '面談力ログ',
   LOG_SHEET_LONG: '面談力ログ_long',
 
@@ -50,6 +50,15 @@ const AXES = [
   { key: 'nextaction', label: 'next_action' },
   { key: 'impression', label: '印象' },
 ];
+
+/* ログのヘッダー定義（appendLog_ と setupSpreadsheet で共用） */
+const LOG_HEADERS_WIDE = [
+  '日時', 'メンバー', '面談種別', '発話比率',
+  '軸1_傾聴', '軸2_質問設計', '軸3_主導権', '軸4_構造化',
+  '軸5_訴求', '軸6_懸念対応', '軸7_next_action', '軸8_印象',
+  '合計', '判定', 'ソース',
+];
+const LOG_HEADERS_LONG = ['日時', 'メンバー', '面談種別', '軸名', 'スコア', 'ソース'];
 
 /* 採点用システムプロンプト（コアIP。scoring_prompt.md と同一に保つ） */
 const SYSTEM_PROMPT = [
@@ -149,12 +158,9 @@ function fetchNewMeetingTranscripts_() {
   if (!CONFIG.WATCH_FOLDER_ID) { Logger.log('WATCH_FOLDER_ID 未設定'); return []; }
 
   const folder = DriveApp.getFolderById(CONFIG.WATCH_FOLDER_ID);
-  const files = folder.getFilesByType(MimeType.PLAIN_TEXT); // .json/.txt はPLAIN_TEXT扱いが多い
   const out = [];
-
-  // JSON拡張子を広く拾う（PLAIN_TEXT以外で保存される場合の保険）
-  const iter = folder.getFiles();
   const seen = {};
+
   function consider(file) {
     const name = file.getName();
     if (seen[file.getId()]) return;
@@ -165,8 +171,11 @@ function fetchNewMeetingTranscripts_() {
     catch (e) { Logger.log('JSON解析失敗 skip: ' + name); return; }
     out.push({ id: file.getId(), file: file, transcript: normalizeTranscript_(json, name) });
   }
-  while (files.hasNext()) consider(files.next());
-  while (iter.hasNext()) consider(iter.next());
+
+  const byType = folder.getFilesByType(MimeType.PLAIN_TEXT);
+  while (byType.hasNext()) consider(byType.next());
+  const all = folder.getFiles();
+  while (all.hasNext()) consider(all.next());
 
   return out;
 }
@@ -187,7 +196,6 @@ function normalizeTranscript_(json, filename) {
     };
   }).filter(function (s) { return s.content; });
 
-  // 面接官（自社側）話者の推定: メタ指定 > 最初の話者 > 'interviewer'系ラベル
   const interviewerSpeaker =
     json.interviewerSpeaker || json.interviewer_speaker ||
     guessInterviewer_(segments);
@@ -204,7 +212,6 @@ function normalizeTranscript_(json, filename) {
 
 function guessInterviewer_(segments) {
   if (!segments.length) return 'unknown';
-  // 'interviewer'や'host'を含むラベルがあれば優先、なければ最初に発話した話者
   const labeled = segments.find(function (s) { return /interv|host|面接|自社/i.test(s.speaker); });
   return labeled ? labeled.speaker : segments[0].speaker;
 }
@@ -214,7 +221,6 @@ function guessInterviewer_(segments) {
 /**
  * 面接官の発話比率を秒数ベースで機械計算する（軸3の客観根拠）。
  * durationが無いsegmentは文字数比で補完。
- * @return {{interviewerRatio:number, bySpeaker:Object}}
  */
 function computeSpeechRatio_(segments, interviewerSpeaker) {
   const acc = {};
@@ -276,14 +282,11 @@ function scoreTranscript_(t, ratio) {
 
 function parseAiJson_(text) {
   let s = String(text).trim();
-  // コードフェンスが付いた場合を除去
   const m = s.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (m) s = m[1].trim();
-  // 最初の { 〜 最後の } を抽出
   const a = s.indexOf('{'), b = s.lastIndexOf('}');
   if (a >= 0 && b > a) s = s.slice(a, b + 1);
   const obj = JSON.parse(s);
-  // 欠損軸を0で補完（堅牢化）
   AXES.forEach(function (ax) {
     if (!obj.scores) obj.scores = {};
     if (typeof obj.scores[ax.key] !== 'number') obj.scores[ax.key] = 0;
@@ -389,7 +392,24 @@ function sendReport_(t, report) {
   });
 }
 
-/* ===================== 傾向ログ（2形式） ===================== */
+/* ===================== 傾向ログ（2形式・自己修復） ===================== */
+
+/**
+ * 指定名のシートを取得。無ければ作成し、ヘッダーを投入して返す。
+ */
+function ensureLogSheet_(ss, name, headers) {
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+  }
+  // ヘッダーが未投入（1行目が空）なら投入
+  if (sh.getLastRow() === 0 || !sh.getRange(1, 1).getValue()) {
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sh.setFrozenRows(1);
+    sh.getRange('1:1').setFontWeight('bold');
+  }
+  return sh;
+}
 
 function appendLog_(t, ratio, scores, total, band, sourceId) {
   if (!CONFIG.LOG_SHEET_ID) return;  // 未設定ならログはスキップ
@@ -397,24 +417,20 @@ function appendLog_(t, ratio, scores, total, band, sourceId) {
   const now = new Date();
   const ratioPct = Math.round(ratio.interviewerRatio * 100) + '%';
 
-  // ワイド形式：1面談＝1行
-  const wide = ss.getSheetByName(CONFIG.LOG_SHEET_WIDE);
-  if (wide) {
-    wide.appendRow([
-      now, t.member, t.type, ratioPct,
-      scores.listening, scores.questioning, scores.initiative, scores.structure,
-      scores.appeal, scores.objection, scores.nextaction, scores.impression,
-      total, band.label, t.title,
-    ]);
-  }
+  // ワイド形式：1面談＝1行（無ければ自動生成）
+  const wide = ensureLogSheet_(ss, CONFIG.LOG_SHEET_WIDE, LOG_HEADERS_WIDE);
+  wide.appendRow([
+    now, t.member, t.type, ratioPct,
+    scores.listening, scores.questioning, scores.initiative, scores.structure,
+    scores.appeal, scores.objection, scores.nextaction, scores.impression,
+    total, band.label, t.title,
+  ]);
 
-  // ロング形式：1面談×1軸＝1行（Looker Studioのヒートマップ用）
-  const long = ss.getSheetByName(CONFIG.LOG_SHEET_LONG);
-  if (long) {
-    AXES.forEach(function (ax) {
-      long.appendRow([now, t.member, t.type, ax.label, scores[ax.key], t.title]);
-    });
-  }
+  // ロング形式：1面談×1軸＝1行（無ければ自動生成／Looker Studioのヒートマップ用）
+  const long = ensureLogSheet_(ss, CONFIG.LOG_SHEET_LONG, LOG_HEADERS_LONG);
+  AXES.forEach(function (ax) {
+    long.appendRow([now, t.member, t.type, ax.label, scores[ax.key], t.title]);
+  });
 }
 
 /* ===================== 二重送信防止 ＆ ファイル退避 ===================== */
@@ -440,7 +456,7 @@ function pick_(obj, keys) {
   for (var i = 0; i < keys.length; i++) if (obj[keys[i]] !== undefined && obj[keys[i]] !== null) return obj[keys[i]];
   return undefined;
 }
-// ms/秒を自動判定して秒に統一（1e5=100000超はms扱い）
+// ms/秒を自動判定して秒に統一（100000超はms扱い）
 function toSeconds_(v) {
   const n = Number(v);
   if (!isFinite(n)) return NaN;
@@ -459,29 +475,22 @@ function esc_(str) {
 /* ===================== セットアップ・テスト ===================== */
 
 /**
- * 傾向ログ用スプレッドシートを新規作成し、2シートをヘッダー付きで用意する。
- * 実行後、ログに出るID/URLを控え、CONFIG.LOG_SHEET_ID に設定する。
+ * ★通常は不要★（LOG_SHEET_ID 設定済み・シートは自動生成されるため）
+ * 新しくログ用スプレッドシートを作りたい場合のみ実行する。
+ * すでに LOG_SHEET_ID が設定済みなら、誤操作による増殖を防ぐため停止する。
  */
 function setupSpreadsheet() {
+  if (CONFIG.LOG_SHEET_ID) {
+    Logger.log('中止: CONFIG.LOG_SHEET_ID が設定済みです（' + CONFIG.LOG_SHEET_ID + '）。');
+    Logger.log('新規作成したい場合は、CONFIG.LOG_SHEET_ID を空にしてから再実行してください。');
+    return;
+  }
   const ss = SpreadsheetApp.create('面談力ログ_' + Utilities.formatDate(new Date(), 'JST', 'yyyyMMdd'));
-
-  const wide = ss.getSheets()[0];
-  wide.setName(CONFIG.LOG_SHEET_WIDE);
-  wide.getRange(1, 1, 1, 15).setValues([[
-    '日時', 'メンバー', '面談種別', '発話比率',
-    '軸1_傾聴', '軸2_質問設計', '軸3_主導権', '軸4_構造化',
-    '軸5_訴求', '軸6_懸念対応', '軸7_next_action', '軸8_印象',
-    '合計', '判定', 'ソース',
-  ]]);
-  wide.setFrozenRows(1);
-  wide.getRange('1:1').setFontWeight('bold');
-
-  const long = ss.insertSheet(CONFIG.LOG_SHEET_LONG);
-  long.getRange(1, 1, 1, 6).setValues([[
-    '日時', 'メンバー', '面談種別', '軸名', 'スコア', 'ソース',
-  ]]);
-  long.setFrozenRows(1);
-  long.getRange('1:1').setFontWeight('bold');
+  ensureLogSheet_(ss, CONFIG.LOG_SHEET_WIDE, LOG_HEADERS_WIDE);
+  ensureLogSheet_(ss, CONFIG.LOG_SHEET_LONG, LOG_HEADERS_LONG);
+  // 既定の空シート（シート1）が残っていれば削除
+  const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
+  if (def && ss.getSheets().length > 1) ss.deleteSheet(def);
 
   Logger.log('作成完了 URL → ' + ss.getUrl());
   Logger.log('CONFIG.LOG_SHEET_ID に設定 → ' + ss.getId());
@@ -489,7 +498,7 @@ function setupSpreadsheet() {
 }
 
 /**
- * Step0: APIキー不要のサンプル送信。体裁確認用（ログにも1行追記される）。
+ * Step0: APIキー不要のサンプル送信。体裁確認用（ログにも追記される）。
  */
 function sendTestReport() {
   const t = {
