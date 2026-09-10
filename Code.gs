@@ -28,7 +28,7 @@ const CONFIG = {
   WORKSPACE_ID: '',                 // 組織レベルのキーを使う場合、ここにワークスペースID（wrksp_...）を設定
 
   // Gemini（PROVIDER='gemini' のとき使用）
-  GEMINI_MODEL: 'gemini-2.0-flash', // 無料枠で使えるモデル。必要なら gemini-2.5-flash 等に変更
+  GEMINI_MODEL: 'gemini-3.6-flash', // 無料枠で使えるモデル。廃止された場合はエラー文が推奨する新モデル名に変更
   // ※APIキーはスクリプト プロパティ GEMINI_API_KEY に登録（Google AI Studioで無料発行）
 
   // Drive監視（Step1以降）。未設定なら取得はスキップ＝安全に何もしない
