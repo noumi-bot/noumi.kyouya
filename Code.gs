@@ -31,7 +31,16 @@ const CONFIG = {
   GEMINI_MODEL: 'gemini-3.6-flash', // 無料枠で使えるモデル。廃止された場合はエラー文が推奨する新モデル名に変更
   // ※APIキーはスクリプト プロパティ GEMINI_API_KEY に登録（Google AI Studioで無料発行）
 
-  // Drive監視（Step1以降）。未設定なら取得はスキップ＝安全に何もしない
+  // 取得元: 'gmail'（Plaudの自動メールを受信・Driveレス）／'drive'（フォルダ監視）
+  INGEST_SOURCE: 'gmail',
+
+  // Gmail取得（INGEST_SOURCE='gmail' のとき使用）
+  GMAIL_QUERY: 'label:面談FB',       // Plaudメールに付けるラベルで絞り込む（フィルタで自動ラベル付け）
+  GMAIL_MAX: 20,                     // 1回で処理する最大件数
+  GMAIL_MARK_READ: true,            // 処理済みメールを既読にする
+  DEFAULT_MEMBER: '',               // メールから面接官名が取れない場合の既定値（空なら「（未設定）」）
+
+  // Drive監視（INGEST_SOURCE='drive' のとき使用）
   WATCH_FOLDER_ID: '1xyCekAHVr_60GzFu0GXRpUFodrqllJ-e', // 未処理JSONを置くフォルダのID
   DONE_FOLDER_ID: '',               // 処理済みの退避先（任意。空なら移動しない）
 
@@ -155,14 +164,106 @@ function processOne_(item) {
   appendLog_(t, ratio, ai.scores, total, band, item.id);
 }
 
-/* ===================== 取得（経路①：Drive監視） ===================== */
+/* ===================== 取得（Gmail / Drive 切替） ===================== */
+
+/** INGEST_SOURCE に応じて Gmail か Drive から未処理の面談を集める。 */
+function fetchNewMeetingTranscripts_() {
+  return (CONFIG.INGEST_SOURCE === 'drive') ? fetchFromDrive_() : fetchFromGmail_();
+}
+
+/* --- 取得A：Gmail（Plaudの自動メール・Driveレス） --- */
+function fetchFromGmail_() {
+  const threads = GmailApp.search(CONFIG.GMAIL_QUERY, 0, CONFIG.GMAIL_MAX || 20);
+  if (!threads.length) { Logger.log('Gmail 新規スレッドなし（query: ' + CONFIG.GMAIL_QUERY + '）'); return []; }
+
+  const out = [];
+  threads.forEach(function (th) {
+    th.getMessages().forEach(function (msg) {
+      const id = msg.getId();
+      let body = msg.getPlainBody();
+      if (!body || !body.trim()) body = htmlToText_(msg.getBody());
+      const subject = msg.getSubject() || '';
+      const t = buildTranscriptFromEmail_(subject, body, msg.getDate());
+      if (t.segments.length === 0) { Logger.log('本文から発話を抽出できず skip: ' + subject); return; }
+      out.push({ id: id, message: msg, transcript: t });
+    });
+  });
+  return out;
+}
+
+/** メール本文（テキスト）→ 内部標準トランスクリプトへ。 */
+function buildTranscriptFromEmail_(subject, body, sentDate) {
+  const segments = parseTranscriptText_(body);
+  const interviewerSpeaker = guessInterviewer_(segments);
+  const meta = parseSubjectMeta_(subject);
+  return {
+    segments: segments,
+    interviewerSpeaker: interviewerSpeaker,
+    member: meta.member || CONFIG.DEFAULT_MEMBER || '（未設定）',
+    type:   meta.type || '面談',
+    date:   Utilities.formatDate(sentDate || new Date(), 'JST', 'yyyy-MM-dd'),
+    title:  subject || 'Plaud面談',
+  };
+}
 
 /**
- * 監視フォルダの未処理JSONを読み込み、内部標準へ正規化して返す。
- * WATCH_FOLDER_ID 未設定なら空配列（＝安全に何もしない）。
- * @return {Array<{id:string, file:GoogleAppsScript.Drive.File, transcript:Object}>}
+ * 文字起こしテキストを話者付きセグメントに分解（Plaudメール本文を想定）。
+ * 行パターン（先頭タイムスタンプは任意）:
+ *   [00:12] 話者A: 本文 / 00:12 話者A：本文 / 話者A: 本文 / Speaker 1: 本文
+ * 話者ラベルの無い行は直前話者の続きとして連結。
  */
-function fetchNewMeetingTranscripts_() {
+function parseTranscriptText_(text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n');
+  const segs = [];
+  let cur = null;
+  const speakerRe = /^\s*(?:\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*)?([^:：\n]{1,40}?)\s*[:：]\s*(.*)$/;
+
+  lines.forEach(function (line) {
+    const s = line.trim();
+    if (!s) return;
+    const m = s.match(speakerRe);
+    if (m && !/https?$/i.test(m[2]) && m[2].length <= 30) {
+      if (cur) segs.push(cur);
+      cur = {
+        start: m[1] ? hmsToSeconds_(m[1]) : NaN,
+        end: NaN,
+        speaker: m[2].trim(),
+        content: (m[3] || '').trim(),
+      };
+    } else if (cur) {
+      cur.content += (cur.content ? ' ' : '') + s;
+    }
+  });
+  if (cur) segs.push(cur);
+  return segs.filter(function (x) { return x.content; });
+}
+
+/** 件名から面談種別を推定（緩め）。取れなければ空。 */
+function parseSubjectMeta_(subject) {
+  const out = { member: '', type: '' };
+  const typeM = String(subject || '').match(/(一次面談|二次面談|最終面談|カジュアル面談|面談|面接)/);
+  if (typeM) out.type = typeM[1];
+  return out;
+}
+
+function hmsToSeconds_(hms) {
+  const p = String(hms).split(':').map(Number);
+  if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
+  if (p.length === 2) return p[0] * 60 + p[1];
+  return NaN;
+}
+
+/** 簡易HTML→テキスト（改行保持）。 */
+function htmlToText_(html) {
+  return String(html || '')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/\s*p\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+
+/* --- 取得B：Drive（フォルダ監視） --- */
+function fetchFromDrive_() {
   if (!CONFIG.WATCH_FOLDER_ID) { Logger.log('WATCH_FOLDER_ID 未設定'); return []; }
 
   const folder = DriveApp.getFolderById(CONFIG.WATCH_FOLDER_ID);
@@ -521,12 +622,18 @@ function markProcessed_(id) {
   PropertiesService.getScriptProperties().setProperty(CONFIG.LEDGER_PREFIX + id, new Date().toISOString());
 }
 function moveToDone_(item) {
-  if (!CONFIG.DONE_FOLDER_ID || !item.file) return;
-  try {
-    const done = DriveApp.getFolderById(CONFIG.DONE_FOLDER_ID);
-    done.addFile(item.file);
-    DriveApp.getFolderById(CONFIG.WATCH_FOLDER_ID).removeFile(item.file);
-  } catch (e) { Logger.log('退避失敗: ' + e); }
+  // Gmail: 処理済みメールを既読化（再取得の抑制。二重処理は台帳でも防止）
+  if (item.message && CONFIG.GMAIL_MARK_READ) {
+    try { item.message.markRead(); } catch (e) { Logger.log('既読化失敗: ' + e); }
+  }
+  // Drive: 処理済みファイルを退避
+  if (CONFIG.DONE_FOLDER_ID && item.file) {
+    try {
+      const done = DriveApp.getFolderById(CONFIG.DONE_FOLDER_ID);
+      done.addFile(item.file);
+      DriveApp.getFolderById(CONFIG.WATCH_FOLDER_ID).removeFile(item.file);
+    } catch (e) { Logger.log('退避失敗: ' + e); }
+  }
 }
 
 /* ===================== ユーティリティ ===================== */
@@ -552,6 +659,30 @@ function esc_(str) {
 }
 
 /* ===================== 診断 ===================== */
+
+/**
+ * GMAIL_QUERY にヒットする最新メールを1通取り、
+ * 「件名・抽出できた話者/発話数・先頭3発話」をログに出す。パーサ調整用。
+ */
+function debugGmailPreview_() {
+  const threads = GmailApp.search(CONFIG.GMAIL_QUERY, 0, 1);
+  if (!threads.length) { Logger.log('該当メールなし（query: ' + CONFIG.GMAIL_QUERY + '）'); return; }
+  const msg = threads[0].getMessages()[0];
+  let body = msg.getPlainBody();
+  if (!body || !body.trim()) body = htmlToText_(msg.getBody());
+  Logger.log('件名: ' + msg.getSubject());
+  Logger.log('本文の先頭300字:\n' + body.slice(0, 300));
+  const segs = parseTranscriptText_(body);
+  Logger.log('抽出できた発話数: ' + segs.length);
+  const speakers = {};
+  segs.forEach(function (s) { speakers[s.speaker] = (speakers[s.speaker] || 0) + 1; });
+  Logger.log('話者と発話数: ' + JSON.stringify(speakers));
+  segs.slice(0, 3).forEach(function (s, i) {
+    Logger.log((i + 1) + '. [' + fmtTime_(s.start) + '] ' + s.speaker + ': ' + s.content.slice(0, 60));
+  });
+  if (segs.length === 0) Logger.log('※ 発話を抽出できませんでした。実際の本文の話者表記を教えてください（パーサ調整します）。');
+}
+
 
 /**
  * 監視フォルダの中身を全部ログに出す。「新規なし」の原因切り分け用。
