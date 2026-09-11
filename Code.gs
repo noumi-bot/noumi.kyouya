@@ -35,7 +35,7 @@ const CONFIG = {
   INGEST_SOURCE: 'gmail',
 
   // Gmail取得（INGEST_SOURCE='gmail' のとき使用）
-  GMAIL_QUERY: 'label:面談FB',       // Plaudメールに付けるラベルで絞り込む（フィルタで自動ラベル付け）
+  GMAIL_QUERY: 'label:"Plaud AI"',   // Plaudメールに付けたラベルで絞り込む（スペース入りは"で囲む）
   GMAIL_MAX: 20,                     // 1回で処理する最大件数
   GMAIL_MARK_READ: true,            // 処理済みメールを既読にする
   DEFAULT_MEMBER: '',               // メールから面接官名が取れない場合の既定値（空なら「（未設定）」）
