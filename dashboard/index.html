@@ -1,0 +1,618 @@
+<title>内定者フォロー管理</title>
+<meta name="description" content="内定者アンケートのフォーム別回答率・個人別実施状況・未回答者を一目で把握する人事向けダッシュボード" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" />
+<style>
+  :root {
+    --bg: #F5F7FA;
+    --surface: #FFFFFF;
+    --surface-2: #F0F3F8;
+    --ink: #1A2431;
+    --ink-2: #55616F;
+    --ink-3: #8994A3;
+    --border: #E3E8EF;
+    --border-strong: #CFD7E1;
+    --accent: #3B4CC0;
+    --accent-2: #5566d8;
+    --accent-soft: #ECEEFB;
+    --good: #1F9D63;
+    --good-soft: #E5F4EC;
+    --warn: #B9791A;
+    --warn-soft: #FAF0DC;
+    --crit: #CB4632;
+    --crit-soft: #FAE7E2;
+    --track: #E9EDF3;
+    --shadow: 0 1px 2px rgba(23,38,61,.04), 0 4px 16px rgba(23,38,61,.05);
+    --radius: 14px;
+    --radius-sm: 9px;
+    --mono: "Noto Sans JP", system-ui, sans-serif;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #0F141C;
+      --surface: #161D27;
+      --surface-2: #1D2632;
+      --ink: #E9EEF5;
+      --ink-2: #A1ACBB;
+      --ink-3: #6B7686;
+      --border: #262F3B;
+      --border-strong: #34404E;
+      --accent: #8C98F1;
+      --accent-2: #a3adf5;
+      --accent-soft: #212840;
+      --good: #4EC98B;
+      --good-soft: #142519;
+      --warn: #DFA94B;
+      --warn-soft: #2A2414;
+      --crit: #EA6F5B;
+      --crit-soft: #2C1915;
+      --track: #222B37;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F141C;
+    --surface: #161D27;
+    --surface-2: #1D2632;
+    --ink: #E9EEF5;
+    --ink-2: #A1ACBB;
+    --ink-3: #6B7686;
+    --border: #262F3B;
+    --border-strong: #34404E;
+    --accent: #8C98F1;
+    --accent-2: #a3adf5;
+    --accent-soft: #212840;
+    --good: #4EC98B;
+    --good-soft: #142519;
+    --warn: #DFA94B;
+    --warn-soft: #2A2414;
+    --crit: #EA6F5B;
+    --crit-soft: #2C1915;
+    --track: #222B37;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    line-height: 1.6;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: "Zen Kaku Gothic New", "Noto Sans JP", sans-serif; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 0 64px; }
+
+  /* Top bar */
+  header.top {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .top-inner {
+    max-width: 1180px; margin: 0 auto; padding-inline: 20px;
+    display: flex; align-items: center; gap: 16px; min-height: 66px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+  .brand .mark {
+    width: 34px; height: 34px; border-radius: 9px; flex: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; color: #fff; font-weight: 900; font-size: 17px;
+    font-family: "Zen Kaku Gothic New", sans-serif;
+  }
+  .brand h1 { font-size: 17px; font-weight: 700; line-height: 1.25; }
+  .brand .sub { font-size: 12px; color: var(--ink-3); font-weight: 500; }
+  .top-meta { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
+  .top-meta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
+  .btn {
+    font-family: inherit; font-size: 13px; font-weight: 500; color: var(--ink-2);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    transition: border-color .15s, color .15s, background .15s;
+    text-decoration: none;
+  }
+  .btn:hover { border-color: var(--border-strong); color: var(--ink); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Sections */
+  section { margin-top: 34px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .sec-head h2 { font-size: 15.5px; font-weight: 700; }
+  .sec-head .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
+  .sec-head .note { margin-left: auto; font-size: 12.5px; color: var(--ink-3); }
+
+  /* KPI tiles */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 22px; }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 18px 16px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  }
+  .kpi .label { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+  .kpi .val { font-size: 34px; font-weight: 900; line-height: 1.05; margin-top: 8px; font-family: "Zen Kaku Gothic New", sans-serif; }
+  .kpi .val small { font-size: 15px; font-weight: 700; color: var(--ink-3); margin-left: 2px; }
+  .kpi .foot { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+  .kpi .spark { margin-top: 12px; height: 6px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .kpi .spark > i { display: block; height: 100%; border-radius: 4px; }
+  .kpi.accent .val { color: var(--accent); }
+  .kpi.crit .val { color: var(--crit); }
+  .kpi.warn .val { color: var(--warn); }
+
+  .cols { display: grid; grid-template-columns: 1.05fr 1fr; gap: 20px; align-items: start; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card .card-head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 10px; }
+  .card .card-head h3 { font-size: 14.5px; font-weight: 700; }
+  .card .card-head .note { margin-left: auto; font-size: 12px; color: var(--ink-3); }
+  .card .card-body { padding: 8px 18px 18px; }
+
+  /* Form progress rows */
+  .form-row { padding: 15px 0; border-bottom: 1px dashed var(--border); }
+  .form-row:last-child { border-bottom: 0; }
+  .form-row .r1 { display: flex; align-items: center; gap: 10px; }
+  .form-row .fname { font-weight: 700; font-size: 14px; }
+  .form-row .rate { margin-left: auto; font-size: 19px; font-weight: 900; font-family: "Zen Kaku Gothic New", sans-serif; }
+  .tag { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; letter-spacing: .02em; white-space: nowrap; }
+  .tag.type { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
+  .tag.over { background: var(--crit-soft); color: var(--crit); }
+  .tag.soon { background: var(--warn-soft); color: var(--warn); }
+  .tag.ok { background: var(--good-soft); color: var(--good); }
+  .bar { margin-top: 9px; height: 9px; border-radius: 5px; background: var(--track); overflow: hidden; display: flex; }
+  .bar > i { display: block; height: 100%; border-radius: 5px 0 0 5px; }
+  .form-row .r2 { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+  .form-row .r2 b { color: var(--ink); font-weight: 700; }
+  .swatch { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align: middle; }
+
+  /* Action / non-respondents */
+  .grp { margin-bottom: 6px; }
+  .grp-head { display: flex; align-items: center; gap: 8px; padding: 12px 0 8px; }
+  .grp-head .gt { font-weight: 700; font-size: 13.5px; }
+  .grp-head .cnt { font-size: 12px; color: var(--ink-3); font-weight: 500; }
+  .grp-head .copy { margin-left: auto; }
+  .grp-head .copy button {
+    font-family: inherit; font-size: 11.5px; font-weight: 600; color: var(--accent);
+    background: var(--accent-soft); border: 1px solid transparent; border-radius: 7px;
+    padding: 5px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .grp-head .copy button:hover { border-color: var(--accent); }
+  .grp-head .copy button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .person-chip {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 11px 5px 8px;
+  }
+  .person-chip .ini { width: 20px; height: 20px; border-radius: 50%; flex:none; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .person-chip .em { color: var(--ink-3); font-size: 11px; }
+  .divider { height: 1px; background: var(--border); margin: 4px 0 2px; }
+
+  /* Matrix table */
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .search { position: relative; flex: 1; min-width: 180px; max-width: 320px; }
+  .search input {
+    width: 100%; font-family: inherit; font-size: 13.5px; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
+    padding: 9px 12px 9px 32px;
+  }
+  .search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
+  .segs { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 3px; gap: 2px; }
+  .segs button {
+    font-family: inherit; font-size: 12.5px; font-weight: 500; color: var(--ink-2);
+    background: transparent; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
+  }
+  .segs button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font-weight: 700; }
+  .segs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; min-width: 620px; }
+  thead th {
+    position: sticky; top: 0; background: var(--surface); z-index: 2;
+    font-size: 11.5px; font-weight: 700; color: var(--ink-2); text-align: left;
+    padding: 13px 14px; border-bottom: 1px solid var(--border-strong); white-space: nowrap;
+  }
+  thead th.c { text-align: center; }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--surface-2); }
+  .name-cell { display: flex; align-items: center; gap: 10px; }
+  .name-cell .ini { width: 26px; height: 26px; border-radius: 50%; flex:none; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .rate-cell { min-width: 150px; }
+  .rate-cell .rb { display: flex; align-items: center; gap: 9px; }
+  .rate-cell .track { flex: 1; height: 7px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .rate-cell .track > i { display: block; height: 100%; border-radius: 4px; }
+  .rate-cell .pct { width: 40px; text-align: right; font-weight: 700; font-size: 12.5px; }
+  td.c { text-align: center; }
+  .status-dot { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 700; }
+  .sd-done { background: var(--good-soft); color: var(--good); }
+  .sd-over { background: var(--crit-soft); color: var(--crit); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--crit) 40%, transparent); }
+  .sd-soon { background: var(--warn-soft); color: var(--warn); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--warn) 40%, transparent); }
+  .empty-row td { text-align: center; color: var(--ink-3); padding: 26px; font-size: 13px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  /* Footer note */
+  .footnote { margin-top: 30px; padding: 16px 18px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); font-size: 12.5px; color: var(--ink-2); }
+  .footnote b { color: var(--ink); }
+  .footnote .row { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; }
+  .footnote .row:first-of-type { margin-top: 10px; }
+  .footnote .k { color: var(--ink-3); min-width: 96px; flex: none; font-weight: 600; }
+
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600;
+    padding: 10px 18px; border-radius: 10px; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 50; box-shadow: 0 8px 30px rgba(0,0,0,.25);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 860px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .cols { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 460px) {
+    .wrap { padding-inline: 14px; }
+    .top-inner { padding-inline: 14px; }
+    .kpi .val { font-size: 29px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <div class="mark">CS</div>
+      <div>
+        <h1>内定者フォロー管理</h1>
+        <div class="sub">内定者アンケート 実施状況ダッシュボード <span style="color:var(--warn);font-weight:700">・サンプルデータ</span></div>
+      </div>
+    </div>
+    <div class="top-meta">
+      <span class="dot" title="データ同期状態"></span>
+      <span>最終更新 <b class="tnum" id="lastUpdated">2026-09-14 16:04</b></span>
+    </div>
+    <a class="btn" id="sourceLink" href="https://docs.google.com/spreadsheets/d/1PcOTO3IG9Hgt9iuQqrCBgdQOxmvVissxliP0hHmLwqs/edit" target="_blank" rel="noopener">
+      元スプレッドシート ↗
+    </a>
+    <button class="btn" id="themeBtn" aria-label="表示テーマを切り替え">◐ テーマ</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- KPI tiles -->
+  <section aria-label="全体サマリ">
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <!-- Two columns: form progress + action list -->
+  <div class="cols">
+    <section aria-label="フォーム別進捗" style="margin-top:34px;">
+      <div class="sec-head">
+        <span class="eyebrow">By form</span>
+        <h2>フォーム別 回答状況</h2>
+      </div>
+      <div class="card">
+        <div class="card-body" id="formList"></div>
+      </div>
+    </section>
+
+    <section aria-label="要対応リスト" style="margin-top:34px;">
+      <div class="sec-head">
+        <span class="eyebrow">Action needed</span>
+        <h2>要対応（未回答者）</h2>
+        <span class="note" id="actionCount"></span>
+      </div>
+      <div class="card">
+        <div class="card-body" id="actionList"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Matrix -->
+  <section aria-label="個人別実施状況">
+    <div class="sec-head">
+      <span class="eyebrow">By person</span>
+      <h2>個人別 実施状況</h2>
+      <span class="note" id="matrixNote"></span>
+    </div>
+    <div class="toolbar">
+      <label class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <input type="text" id="searchBox" placeholder="氏名で検索" autocomplete="off" />
+      </label>
+      <div class="segs" id="filterSegs" role="group" aria-label="表示フィルタ">
+        <button data-f="all" aria-pressed="true">全員</button>
+        <button data-f="incomplete" aria-pressed="false">未完了のみ</button>
+        <button data-f="zero" aria-pressed="false">未着手</button>
+        <button data-f="complete" aria-pressed="false">完了</button>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr id="matrixHead"></tr></thead>
+        <tbody id="matrixBody"></tbody>
+      </table>
+    </div>
+    <div class="legend">
+      <span><span class="status-dot sd-done" style="width:18px;height:18px;">✓</span> 回答済</span>
+      <span><span class="status-dot sd-over" style="width:18px;height:18px;">−</span> 未回答（期限超過）</span>
+      <span><span class="status-dot sd-soon" style="width:18px;height:18px;">−</span> 未回答（期限前・要リマインド）</span>
+    </div>
+  </section>
+
+  <!-- Footnote -->
+  <div class="footnote">
+    <b>データについて</b>
+    <div class="row"><span class="k">サンプル</span><span>このリポジトリ版は <b>架空のサンプルデータ</b> です。実際の内定者データは、Google Apps Script ライブ同期版（<b>apps-script/</b>）でスプレッドシートから直接表示されます。</span></div>
+    <div class="row"><span class="k">集計対象</span><span>内定者マスタで「対象」の内定者を集計（対象外は除外）。追跡フォームごとに回答状況を集計します。</span></div>
+    <div class="row"><span class="k">表記ゆれ補正</span><span>氏名別名・フリガナ・異体字を自動補正。個人別の◯/－は照合チェック（回答済）と未回答リスト（未回答）から再構成しています。</span></div>
+    <div class="row"><span class="k">個人情報</span><span>本画面はサマリ（氏名・回答状況・実施率・連絡用メール）のみを表示。住所・電話番号など回答内の生データは含みません。</span></div>
+    <div class="row"><span class="k">同期</span><span>スナップショット版は静的です。常に最新にしたい場合はライブ同期版（README 参照）をご利用ください。</span></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- データ（元スプレッドシートのサマリより）----------------------------
+  var TODAY = "2026-09-14";
+  var LAST_UPDATED = "2026-09-14 16:04";
+
+  var FORMS = [
+    { id: "genjo", name: "現在の状況確認",          type: "毎月", due: "2026-08-20", last: "2026-08-19 11:16" },
+    { id: "event", name: "ｲﾍﾞﾝﾄ回答",              type: "毎月", due: "2026-09-01", last: "2026-09-02 22:08" },
+    { id: "shiki", name: "式典服装身長/ｱﾚﾙｷﾞｰ",     type: "単発", due: "2026-09-15", last: "2026-09-14 16:04" }
+  ];
+
+  // 各人の [現在の状況確認, ｲﾍﾞﾝﾄ回答, 式典] を 1=回答済 / 0=未回答 で
+  // ※このリポジトリ版はサンプル（架空）データです。実データはライブ同期版（apps-script/）で表示されます。
+  var PEOPLE = [
+    { name: "山田太郎",   email: "taro.yamada@example.com",     r: [1,0,1] },
+    { name: "佐藤花子",   email: "hanako.sato@example.com",     r: [1,0,1] },
+    { name: "鈴木一郎",   email: "ichiro.suzuki@example.com",   r: [1,0,1] },
+    { name: "高橋美咲",   email: "misaki.takahashi@example.com",r: [1,0,1] },
+    { name: "田中健太",   email: "kenta.tanaka@example.com",    r: [1,0,1] },
+    { name: "伊藤彩",     email: "aya.ito@example.com",         r: [1,0,1] },
+    { name: "渡辺翔",     email: "sho.watanabe@example.com",    r: [1,0,1] },
+    { name: "中村結衣",   email: "yui.nakamura@example.com",    r: [0,0,1] },
+    { name: "小林大輔",   email: "daisuke.kobayashi@example.com",r: [1,0,0] },
+    { name: "加藤陽菜",   email: "hina.kato@example.com",       r: [1,0,1] },
+    { name: "吉田直樹",   email: "naoki.yoshida@example.com",   r: [1,0,0] },
+    { name: "山本さくら", email: "sakura.yamamoto@example.com", r: [1,1,1] },
+    { name: "松本涼",     email: "ryo.matsumoto@example.com",   r: [1,0,1] },
+    { name: "井上楓",     email: "kaede.inoue@example.com",     r: [1,0,0] },
+    { name: "木村悠",     email: "yu.kimura@example.com",       r: [1,0,1] },
+    { name: "林美優",     email: "miyu.hayashi@example.com",    r: [1,0,1] },
+    { name: "清水蓮",     email: "ren.shimizu@example.com",     r: [1,0,1] },
+    { name: "森田航",     email: "wataru.morita@example.com",   r: [1,1,1] },
+    { name: "橋本奈々",   email: "nana.hashimoto@example.com",  r: [1,0,1] },
+    { name: "石川真央",   email: "mao.ishikawa@example.com",    r: [1,0,0] },
+    { name: "斎藤光",     email: "hikari.saito@example.com",    r: [1,0,1] },
+    { name: "岡田悠人",   email: "yuto.okada@example.com",      r: [0,0,0] }
+  ];
+
+  // ---- 派生値 --------------------------------------------------------------
+  var nForms = FORMS.length;
+  function isOverdue(due) { return due < TODAY; }         // 期日 < 今日 → 期限超過
+  FORMS.forEach(function (f, i) {
+    var done = 0;
+    PEOPLE.forEach(function (p) { done += p.r[i]; });
+    f.done = done;
+    f.notdone = PEOPLE.length - done;
+    f.rate = Math.round((done / PEOPLE.length) * 100);
+    f.overdue = isOverdue(f.due);
+  });
+  PEOPLE.forEach(function (p) {
+    var s = p.r.reduce(function (a, b) { return a + b; }, 0);
+    p.rate = Math.round((s / nForms) * 100);
+    p.done = s;
+  });
+
+  var totalCells = PEOPLE.length * nForms;
+  var totalDone = PEOPLE.reduce(function (a, p) { return a + p.done; }, 0);
+  var overallRate = Math.round((totalDone / totalCells) * 100);
+  var overCount = 0, soonCount = 0;
+  PEOPLE.forEach(function (p) {
+    p.r.forEach(function (v, i) {
+      if (v === 0) { FORMS[i].overdue ? overCount++ : soonCount++; }
+    });
+  });
+  var totalMissing = overCount + soonCount;
+  var completeCount = PEOPLE.filter(function (p) { return p.rate === 100; }).length;
+  var zeroCount = PEOPLE.filter(function (p) { return p.rate === 0; }).length;
+
+  // ---- 色ユーティリティ ----------------------------------------------------
+  var AV_COLORS = ["#3B4CC0","#1F9D63","#B9791A","#8E44AD","#C0392B","#2C82C9","#16A085","#D35400"];
+  function colorFor(name) {
+    var h = 0; for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return AV_COLORS[h % AV_COLORS.length];
+  }
+  function initial(name) { return name.charAt(0); }
+  function rateColor(rate) {
+    if (rate >= 100) return "var(--good)";
+    if (rate >= 60) return "var(--accent)";
+    if (rate >= 34) return "var(--warn)";
+    return "var(--crit)";
+  }
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" })[c]; }); }
+
+  // ---- KPI -----------------------------------------------------------------
+  var kpis = [
+    { cls: "accent", label: "全体実施率", val: overallRate, unit: "%", foot: totalDone + " / " + totalCells + " 件 回答済", bar: overallRate, barColor: "var(--accent)" },
+    { cls: "", label: "集計対象者", val: PEOPLE.length, unit: "名", foot: "追跡フォーム " + nForms + " 件", bar: 100, barColor: "var(--ink-3)" },
+    { cls: "crit", label: "未回答（要対応）", val: totalMissing, unit: "件", foot: "期限超過 " + overCount + " ・ 要リマインド " + soonCount, bar: Math.round(totalMissing / totalCells * 100), barColor: "var(--crit)" },
+    { cls: "", label: "全項目完了", val: completeCount, unit: "名", foot: (zeroCount ? "未着手 " + zeroCount + " 名" : "未着手なし"), bar: Math.round(completeCount / PEOPLE.length * 100), barColor: "var(--good)" }
+  ];
+  $("kpis").innerHTML = kpis.map(function (k) {
+    return '<div class="kpi ' + k.cls + '">' +
+      '<div class="label">' + k.label + '</div>' +
+      '<div class="val tnum">' + k.val + '<small>' + k.unit + '</small></div>' +
+      '<div class="foot tnum">' + k.foot + '</div>' +
+      '<div class="spark"><i style="width:' + k.bar + '%;background:' + k.barColor + '"></i></div>' +
+      '</div>';
+  }).join("");
+
+  // ---- フォーム別 ----------------------------------------------------------
+  $("formList").innerHTML = FORMS.map(function (f) {
+    var statusTag = f.overdue
+      ? '<span class="tag over">期限超過</span>'
+      : '<span class="tag soon">期限前</span>';
+    if (f.rate >= 100) statusTag = '<span class="tag ok">完了</span>';
+    var barColor = f.rate >= 100 ? "var(--good)" : (f.rate >= 60 ? "var(--accent)" : (f.overdue ? "var(--crit)" : "var(--warn)"));
+    return '<div class="form-row">' +
+      '<div class="r1">' +
+        '<span class="fname">' + esc(f.name) + '</span>' +
+        '<span class="tag type">' + f.type + '</span>' +
+        statusTag +
+        '<span class="rate tnum" style="color:' + barColor + '">' + f.rate + '<span style="font-size:12px">%</span></span>' +
+      '</div>' +
+      '<div class="bar" title="' + f.rate + '%"><i style="width:' + f.rate + '%;background:' + barColor + '"></i></div>' +
+      '<div class="r2 tnum">' +
+        '<span><span class="swatch" style="background:' + barColor + '"></span>回答済 <b>' + f.done + '</b></span>' +
+        '<span>未回答 <b>' + f.notdone + '</b></span>' +
+        '<span>期日 <b>' + f.due.slice(5).replace("-", "/") + '</b></span>' +
+        '<span>最終回答 ' + f.last + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+
+  // ---- 要対応リスト --------------------------------------------------------
+  function buildActionGroups() {
+    // 期限超過 / 要リマインド の2グループ、各グループ内はフォーム別
+    var groups = [
+      { key: "over", title: "期限超過", cls: "over", forms: [] },
+      { key: "soon", title: "要リマインド（期限前）", cls: "soon", forms: [] }
+    ];
+    FORMS.forEach(function (f, i) {
+      var members = PEOPLE.filter(function (p) { return p.r[i] === 0; });
+      if (!members.length) return;
+      var g = f.overdue ? groups[0] : groups[1];
+      g.forms.push({ form: f, members: members });
+    });
+    return groups.filter(function (g) { return g.forms.length; });
+  }
+  var actionGroups = buildActionGroups();
+  $("actionCount").textContent = "計 " + totalMissing + " 件";
+  $("actionList").innerHTML = actionGroups.map(function (g) {
+    return g.forms.map(function (fg, idx) {
+      var emails = fg.members.map(function (m) { return m.email; }).join(", ");
+      var chips = fg.members.map(function (m) {
+        return '<span class="person-chip"><span class="ini" style="background:' + colorFor(m.name) + '">' + esc(initial(m.name)) + '</span>' + esc(m.name) + '</span>';
+      }).join("");
+      var tagCls = g.cls === "over" ? "over" : "soon";
+      return (idx === 0 ? '<div class="grp-head" style="padding-top:' + (g === actionGroups[0] ? '4' : '14') + 'px;">' +
+                '<span class="tag ' + tagCls + '">' + g.title + '</span></div>' : '') +
+        '<div class="grp">' +
+          '<div class="grp-head">' +
+            '<span class="gt">' + esc(fg.form.name) + '</span>' +
+            '<span class="cnt tnum">' + fg.members.length + ' 名 ・ 期日 ' + fg.form.due.slice(5).replace("-", "/") + '</span>' +
+            '<span class="copy"><button data-emails="' + esc(emails) + '" data-count="' + fg.members.length + '">✉ メール一括コピー</button></span>' +
+          '</div>' +
+          '<div class="chips">' + chips + '</div>' +
+        '</div>';
+    }).join('<div class="divider"></div>');
+  }).join('<div class="divider"></div>');
+
+  // ---- 個人別マトリクス ----------------------------------------------------
+  var headHtml = '<th>氏名</th><th>実施率</th>';
+  FORMS.forEach(function (f) { headHtml += '<th class="c" title="期日 ' + f.due + '">' + esc(f.name) + '</th>'; });
+  $("matrixHead").innerHTML = headHtml;
+  $("matrixNote").textContent = PEOPLE.length + " 名";
+
+  var state = { q: "", filter: "all" };
+  function passFilter(p) {
+    if (state.filter === "incomplete" && p.rate === 100) return false;
+    if (state.filter === "zero" && p.rate !== 0) return false;
+    if (state.filter === "complete" && p.rate !== 100) return false;
+    if (state.q && p.name.indexOf(state.q) === -1) return false;
+    return true;
+  }
+  function renderMatrix() {
+    var rows = PEOPLE.slice().sort(function (a, b) { return b.rate - a.rate || a.name.localeCompare(b.name, "ja"); });
+    var out = "";
+    var shown = 0;
+    rows.forEach(function (p) {
+      if (!passFilter(p)) return;
+      shown++;
+      var cells = p.r.map(function (v, i) {
+        if (v === 1) return '<td class="c"><span class="status-dot sd-done" title="回答済">✓</span></td>';
+        var cls = FORMS[i].overdue ? "sd-over" : "sd-soon";
+        var t = FORMS[i].overdue ? "未回答（期限超過）" : "未回答（要リマインド）";
+        return '<td class="c"><span class="status-dot ' + cls + '" title="' + t + '">−</span></td>';
+      }).join("");
+      out += '<tr>' +
+        '<td><div class="name-cell"><span class="ini" style="background:' + colorFor(p.name) + '">' + esc(initial(p.name)) + '</span>' + esc(p.name) + '</div></td>' +
+        '<td class="rate-cell"><div class="rb"><span class="track"><i style="width:' + p.rate + '%;background:' + rateColor(p.rate) + '"></i></span><span class="pct tnum" style="color:' + rateColor(p.rate) + '">' + p.rate + '%</span></div></td>' +
+        cells +
+      '</tr>';
+    });
+    if (!shown) out = '<tr class="empty-row"><td colspan="' + (2 + nForms) + '">該当する内定者がいません</td></tr>';
+    $("matrixBody").innerHTML = out;
+  }
+  renderMatrix();
+
+  $("searchBox").addEventListener("input", function (e) { state.q = e.target.value.trim(); renderMatrix(); });
+  Array.prototype.forEach.call($("filterSegs").querySelectorAll("button"), function (b) {
+    b.addEventListener("click", function () {
+      state.filter = b.getAttribute("data-f");
+      Array.prototype.forEach.call($("filterSegs").querySelectorAll("button"), function (x) {
+        x.setAttribute("aria-pressed", x === b ? "true" : "false");
+      });
+      renderMatrix();
+    });
+  });
+
+  // ---- コピー & トースト ---------------------------------------------------
+  var toast = $("toast"), toastTimer;
+  function showToast(msg) {
+    toast.textContent = msg; toast.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 2200);
+  }
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest("button[data-emails]") : null;
+    if (!btn) return;
+    var emails = btn.getAttribute("data-emails");
+    var n = btn.getAttribute("data-count");
+    function done() { showToast("✅ " + n + " 件のメールアドレスをコピーしました"); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(emails).then(done, function () { fallbackCopy(emails); done(); });
+    } else { fallbackCopy(emails); done(); }
+  });
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea"); ta.value = text;
+    ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta);
+    ta.select(); try { document.execCommand("copy"); } catch (e) {} document.body.removeChild(ta);
+  }
+
+  // ---- テーマ切替 ----------------------------------------------------------
+  var themeBtn = $("themeBtn");
+  var order = ["system", "light", "dark"];
+  var themeLabels = { system: "◐ 自動", light: "☀ ライト", dark: "☾ ダーク" };
+  var cur = "system";
+  try { var saved = localStorage.getItem("cs-follow-theme"); if (saved) cur = saved; } catch (e) {}
+  function applyTheme() {
+    if (cur === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", cur);
+    themeBtn.textContent = themeLabels[cur];
+    try { localStorage.setItem("cs-follow-theme", cur); } catch (e) {}
+  }
+  themeBtn.addEventListener("click", function () {
+    cur = order[(order.indexOf(cur) + 1) % order.length]; applyTheme();
+  });
+  applyTheme();
+
+  $("lastUpdated").textContent = LAST_UPDATED;
+})();
+</script>

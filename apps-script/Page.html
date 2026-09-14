@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title>内定者フォロー管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --bg:#F5F7FA; --surface:#FFFFFF; --surface-2:#F0F3F8; --ink:#1A2431; --ink-2:#55616F; --ink-3:#8994A3;
+    --border:#E3E8EF; --border-strong:#CFD7E1; --accent:#3B4CC0; --accent-2:#5566d8; --accent-soft:#ECEEFB;
+    --good:#1F9D63; --good-soft:#E5F4EC; --warn:#B9791A; --warn-soft:#FAF0DC; --crit:#CB4632; --crit-soft:#FAE7E2;
+    --track:#E9EDF3; --shadow:0 1px 2px rgba(23,38,61,.04),0 4px 16px rgba(23,38,61,.05);
+    --radius:14px; --radius-sm:9px; --mono:"Noto Sans JP",system-ui,sans-serif;
+  }
+  :root:not([data-theme="light"]) { @media (prefers-color-scheme: dark) {
+    --bg:#0F141C; --surface:#161D27; --surface-2:#1D2632; --ink:#E9EEF5; --ink-2:#A1ACBB; --ink-3:#6B7686;
+    --border:#262F3B; --border-strong:#34404E; --accent:#8C98F1; --accent-2:#a3adf5; --accent-soft:#212840;
+    --good:#4EC98B; --good-soft:#142519; --warn:#DFA94B; --warn-soft:#2A2414; --crit:#EA6F5B; --crit-soft:#2C1915;
+    --track:#222B37; --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.28);
+  }}
+  :root[data-theme="dark"] {
+    --bg:#0F141C; --surface:#161D27; --surface-2:#1D2632; --ink:#E9EEF5; --ink-2:#A1ACBB; --ink-3:#6B7686;
+    --border:#262F3B; --border-strong:#34404E; --accent:#8C98F1; --accent-2:#a3adf5; --accent-soft:#212840;
+    --good:#4EC98B; --good-soft:#142519; --warn:#DFA94B; --warn-soft:#2A2414; --crit:#EA6F5B; --crit-soft:#2C1915;
+    --track:#222B37; --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.28);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--mono); line-height:1.6; font-size:15px; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3 { font-family:"Zen Kaku Gothic New","Noto Sans JP",sans-serif; margin:0; text-wrap:balance; letter-spacing:.01em; }
+  .tnum { font-variant-numeric:tabular-nums; }
+  .wrap { max-width:1180px; margin:0 auto; padding-inline:20px; padding-block:0 64px; }
+  header.top { position:sticky; top:0; z-index:20; background:color-mix(in srgb,var(--bg) 86%,transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--border); }
+  .top-inner { max-width:1180px; margin:0 auto; padding-inline:20px; display:flex; align-items:center; gap:16px; min-height:66px; flex-wrap:wrap; }
+  .brand { display:flex; align-items:center; gap:12px; margin-right:auto; }
+  .brand .mark { width:34px; height:34px; border-radius:9px; flex:none; background:linear-gradient(135deg,var(--accent),var(--accent-2)); display:grid; place-items:center; color:#fff; font-weight:900; font-size:17px; font-family:"Zen Kaku Gothic New",sans-serif; }
+  .brand h1 { font-size:17px; font-weight:700; line-height:1.25; }
+  .brand .sub { font-size:12px; color:var(--ink-3); font-weight:500; }
+  .top-meta { display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--ink-2); }
+  .top-meta .dot { width:6px; height:6px; border-radius:50%; background:var(--good); box-shadow:0 0 0 3px var(--good-soft); }
+  .btn { font-family:inherit; font-size:13px; font-weight:500; color:var(--ink-2); background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:7px 12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:border-color .15s,color .15s; text-decoration:none; }
+  .btn:hover { border-color:var(--border-strong); color:var(--ink); }
+  .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  section { margin-top:34px; }
+  .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
+  .sec-head h2 { font-size:15.5px; font-weight:700; }
+  .sec-head .eyebrow { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; }
+  .sec-head .note { margin-left:auto; font-size:12.5px; color:var(--ink-3); }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:22px; }
+  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 18px 16px; box-shadow:var(--shadow); }
+  .kpi .label { font-size:12px; color:var(--ink-2); font-weight:500; }
+  .kpi .val { font-size:34px; font-weight:900; line-height:1.05; margin-top:8px; font-family:"Zen Kaku Gothic New",sans-serif; }
+  .kpi .val small { font-size:15px; font-weight:700; color:var(--ink-3); margin-left:2px; }
+  .kpi .foot { font-size:12px; color:var(--ink-3); margin-top:6px; }
+  .kpi .spark { margin-top:12px; height:6px; border-radius:4px; background:var(--track); overflow:hidden; }
+  .kpi .spark > i { display:block; height:100%; border-radius:4px; }
+  .kpi.accent .val { color:var(--accent); } .kpi.crit .val { color:var(--crit); }
+  .cols { display:grid; grid-template-columns:1.05fr 1fr; gap:20px; align-items:start; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); }
+  .card .card-body { padding:8px 18px 18px; }
+  .form-row { padding:15px 0; border-bottom:1px dashed var(--border); }
+  .form-row:last-child { border-bottom:0; }
+  .form-row .r1 { display:flex; align-items:center; gap:10px; }
+  .form-row .fname { font-weight:700; font-size:14px; }
+  .form-row .rate { margin-left:auto; font-size:19px; font-weight:900; font-family:"Zen Kaku Gothic New",sans-serif; }
+  .tag { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+  .tag.type { background:var(--surface-2); color:var(--ink-2); border:1px solid var(--border); }
+  .tag.over { background:var(--crit-soft); color:var(--crit); }
+  .tag.soon { background:var(--warn-soft); color:var(--warn); }
+  .tag.ok { background:var(--good-soft); color:var(--good); }
+  .bar { margin-top:9px; height:9px; border-radius:5px; background:var(--track); overflow:hidden; display:flex; }
+  .bar > i { display:block; height:100%; border-radius:5px 0 0 5px; }
+  .form-row .r2 { display:flex; gap:14px; margin-top:8px; font-size:12px; color:var(--ink-2); flex-wrap:wrap; }
+  .form-row .r2 b { color:var(--ink); font-weight:700; }
+  .swatch { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+  .grp { margin-bottom:6px; }
+  .grp-head { display:flex; align-items:center; gap:8px; padding:12px 0 8px; }
+  .grp-head .gt { font-weight:700; font-size:13.5px; }
+  .grp-head .cnt { font-size:12px; color:var(--ink-3); font-weight:500; }
+  .grp-head .copy { margin-left:auto; }
+  .grp-head .copy button { font-family:inherit; font-size:11.5px; font-weight:600; color:var(--accent); background:var(--accent-soft); border:1px solid transparent; border-radius:7px; padding:5px 10px; cursor:pointer; }
+  .grp-head .copy button:hover { border-color:var(--accent); }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; }
+  .person-chip { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:5px 11px 5px 8px; }
+  .person-chip .ini { width:20px; height:20px; border-radius:50%; flex:none; display:grid; place-items:center; font-size:10px; font-weight:700; color:#fff; }
+  .divider { height:1px; background:var(--border); margin:4px 0 2px; }
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .search { position:relative; flex:1; min-width:180px; max-width:320px; }
+  .search input { width:100%; font-family:inherit; font-size:13.5px; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:9px 12px 9px 32px; }
+  .search input:focus-visible { outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent); }
+  .search svg { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--ink-3); }
+  .segs { display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; padding:3px; gap:2px; }
+  .segs button { font-family:inherit; font-size:12.5px; font-weight:500; color:var(--ink-2); background:transparent; border:0; border-radius:6px; padding:6px 12px; cursor:pointer; white-space:nowrap; }
+  .segs button[aria-pressed="true"] { background:var(--surface); color:var(--ink); box-shadow:var(--shadow); font-weight:700; }
+  .table-scroll { overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow); }
+  table { width:100%; border-collapse:collapse; min-width:620px; }
+  thead th { position:sticky; top:0; background:var(--surface); z-index:2; font-size:11.5px; font-weight:700; color:var(--ink-2); text-align:left; padding:13px 14px; border-bottom:1px solid var(--border-strong); white-space:nowrap; }
+  thead th.c { text-align:center; }
+  tbody td { padding:11px 14px; border-bottom:1px solid var(--border); font-size:13.5px; }
+  tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:var(--surface-2); }
+  .name-cell { display:flex; align-items:center; gap:10px; }
+  .name-cell .ini { width:26px; height:26px; border-radius:50%; flex:none; display:grid; place-items:center; font-size:11px; font-weight:700; color:#fff; }
+  .rate-cell { min-width:150px; }
+  .rate-cell .rb { display:flex; align-items:center; gap:9px; }
+  .rate-cell .track { flex:1; height:7px; border-radius:4px; background:var(--track); overflow:hidden; }
+  .rate-cell .track > i { display:block; height:100%; border-radius:4px; }
+  .rate-cell .pct { width:40px; text-align:right; font-weight:700; font-size:12.5px; }
+  td.c { text-align:center; }
+  .status-dot { display:inline-grid; place-items:center; width:24px; height:24px; border-radius:50%; font-size:12px; font-weight:700; }
+  .sd-done { background:var(--good-soft); color:var(--good); }
+  .sd-over { background:var(--crit-soft); color:var(--crit); box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--crit) 40%,transparent); }
+  .sd-soon { background:var(--warn-soft); color:var(--warn); box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--warn) 40%,transparent); }
+  .sd-na { color:var(--ink-3); }
+  .empty-row td { text-align:center; color:var(--ink-3); padding:26px; font-size:13px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; font-size:12px; color:var(--ink-2); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .footnote { margin-top:30px; padding:16px 18px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); font-size:12.5px; color:var(--ink-2); }
+  .footnote b { color:var(--ink); }
+  .footnote .row { display:flex; gap:8px; align-items:flex-start; margin-top:6px; }
+  .footnote .k { color:var(--ink-3); min-width:96px; flex:none; font-weight:600; }
+  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ink); color:var(--bg); font-size:13px; font-weight:600; padding:10px 18px; border-radius:10px; opacity:0; pointer-events:none; transition:opacity .2s,transform .2s; z-index:50; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .state { text-align:center; color:var(--ink-3); padding:80px 20px; font-size:14px; }
+  .spinner { width:26px; height:26px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 14px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .err { max-width:760px; margin:24px auto; background:var(--crit-soft); border:1px solid var(--crit); border-radius:12px; padding:16px 18px; color:var(--ink); font-size:13px; }
+  .err pre { white-space:pre-wrap; word-break:break-word; font-size:11.5px; color:var(--ink-2); margin:8px 0 0; }
+  @media (max-width:860px){ .kpis{grid-template-columns:repeat(2,1fr);} .cols{grid-template-columns:1fr;} }
+  @media (max-width:460px){ .wrap{padding-inline:14px;} .top-inner{padding-inline:14px;} .kpi .val{font-size:29px;} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important; animation:none!important;} }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <div class="mark">CS</div>
+      <div><h1>内定者フォロー管理</h1><div class="sub">18期 内定者アンケート 実施状況ダッシュボード</div></div>
+    </div>
+    <div class="top-meta"><span class="dot"></span><span>最終更新 <b class="tnum" id="lastUpdated">—</b></span></div>
+    <button class="btn" id="reloadBtn" title="最新データを再取得">⟳ 更新</button>
+    <button class="btn" id="themeBtn" aria-label="表示テーマを切り替え">◐ テーマ</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="loading" class="state"><div class="spinner"></div>スプレッドシートから最新データを読み込み中…</div>
+  <div id="app" hidden>
+    <section aria-label="全体サマリ"><div class="kpis" id="kpis"></div></section>
+    <div class="cols">
+      <section aria-label="フォーム別進捗" style="margin-top:34px;">
+        <div class="sec-head"><span class="eyebrow">By form</span><h2>フォーム別 回答状況</h2></div>
+        <div class="card"><div class="card-body" id="formList"></div></div>
+      </section>
+      <section aria-label="要対応リスト" style="margin-top:34px;">
+        <div class="sec-head"><span class="eyebrow">Action needed</span><h2>要対応（未回答者）</h2><span class="note" id="actionCount"></span></div>
+        <div class="card"><div class="card-body" id="actionList"></div></div>
+      </section>
+    </div>
+    <section aria-label="個人別実施状況">
+      <div class="sec-head"><span class="eyebrow">By person</span><h2>個人別 実施状況</h2><span class="note" id="matrixNote"></span></div>
+      <div class="toolbar">
+        <label class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+          <input type="text" id="searchBox" placeholder="氏名で検索" autocomplete="off">
+        </label>
+        <div class="segs" id="filterSegs" role="group" aria-label="表示フィルタ">
+          <button data-f="all" aria-pressed="true">全員</button>
+          <button data-f="incomplete" aria-pressed="false">未完了のみ</button>
+          <button data-f="zero" aria-pressed="false">未着手</button>
+          <button data-f="complete" aria-pressed="false">完了</button>
+        </div>
+      </div>
+      <div class="table-scroll"><table><thead><tr id="matrixHead"></tr></thead><tbody id="matrixBody"></tbody></table></div>
+      <div class="legend">
+        <span><span class="status-dot sd-done" style="width:18px;height:18px;">✓</span> 回答済</span>
+        <span><span class="status-dot sd-over" style="width:18px;height:18px;">−</span> 未回答（期限超過）</span>
+        <span><span class="status-dot sd-soon" style="width:18px;height:18px;">−</span> 未回答（期限前・要リマインド）</span>
+        <span><span class="status-dot sd-na" style="width:18px;height:18px;">·</span> 対象外</span>
+      </div>
+    </section>
+    <div class="footnote">
+      <b>データについて</b>
+      <div class="row"><span class="k">集計対象</span><span>内定者マスタで「対象」の <b id="fnTarget">—</b> 名。追跡フォーム <b id="fnForms">—</b> 件。</span></div>
+      <div class="row"><span class="k">表記ゆれ補正</span><span>氏名別名 <b id="fnAlias">—</b> 件を自動補正。個人別◯/－は照合チェック（回答済）と未回答リスト（未回答）から再構成しています。</span></div>
+      <div class="row"><span class="k">個人情報</span><span>本画面はサマリのみを表示。回答内の住所・電話番号などの生データは含みません。データは Google 内に留まります。</span></div>
+      <div class="row"><span class="k">同期</span><span><b>ライブ同期</b>：ページを開く／「更新」を押すたびにスプレッドシートの最新値を読み込みます。</span></div>
+    </div>
+  </div>
+  <div id="error" hidden></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  var DATA = null;
+  var state = { q: "", filter: "all" };
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c];}); }
+  var AV_COLORS=["#3B4CC0","#1F9D63","#B9791A","#8E44AD","#C0392B","#2C82C9","#16A085","#D35400"];
+  function colorFor(name){ var h=0; for(var i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
+  function initial(name){ return name.charAt(0); }
+  function rateColor(rate){ if(rate>=100)return "var(--good)"; if(rate>=60)return "var(--accent)"; if(rate>=34)return "var(--warn)"; return "var(--crit)"; }
+  function mmdd(due){ return due && due.length>=10 ? due.slice(5).replace("-","/") : due; }
+
+  // ---- サーバー取得 ----
+  function load() {
+    $("loading").hidden = false; $("app").hidden = true; $("error").hidden = true;
+    google.script.run
+      .withSuccessHandler(function (data) {
+        if (!data || data.error) return showError(data ? data.error : "データが取得できませんでした");
+        DATA = data; renderAll();
+        $("loading").hidden = true; $("app").hidden = false;
+      })
+      .withFailureHandler(function (err) { showError(String(err && err.message ? err.message : err)); })
+      .getDashboardData();
+  }
+  function showError(msg) {
+    $("loading").hidden = true; $("app").hidden = true;
+    var e = $("error"); e.hidden = false;
+    e.innerHTML = '<div class="err"><b>読み込みエラー</b><div>スプレッドシートの読み取り中に問題が発生しました。タブ名（内定者マスタ / フォーム一覧 / 未回答リスト / 照合チェック）をご確認ください。</div><pre>' + esc(msg) + '</pre></div>';
+  }
+
+  function renderAll() {
+    var forms = DATA.forms, people = DATA.people, meta = DATA.meta;
+    $("lastUpdated").textContent = DATA.lastUpdated || "—";
+    $("fnTarget").textContent = meta.targetCount;
+    $("fnForms").textContent = meta.formCount;
+    $("fnAlias").textContent = meta.aliasCount;
+
+    // KPI
+    var totalCells = 0, totalDone = 0, over = 0, soon = 0;
+    people.forEach(function (p) {
+      p.r.forEach(function (v, i) {
+        if (v === null) return;
+        totalCells++;
+        if (v === 1) totalDone++;
+        else (forms[i].overdue ? over++ : soon++);
+      });
+    });
+    var overallRate = totalCells ? Math.round(totalDone / totalCells * 100) : 0;
+    var totalMissing = over + soon;
+    var completeCount = people.filter(function (p) { return p.rate === 100; }).length;
+    var zeroCount = people.filter(function (p) { return p.rate === 0; }).length;
+
+    var kpis = [
+      { cls:"accent", label:"全体実施率", val:overallRate, unit:"%", foot:totalDone+" / "+totalCells+" 件 回答済", bar:overallRate, c:"var(--accent)" },
+      { cls:"", label:"集計対象者", val:people.length, unit:"名", foot:"追跡フォーム "+forms.length+" 件", bar:100, c:"var(--ink-3)" },
+      { cls:"crit", label:"未回答（要対応）", val:totalMissing, unit:"件", foot:"期限超過 "+over+" ・ 要リマインド "+soon, bar:totalCells?Math.round(totalMissing/totalCells*100):0, c:"var(--crit)" },
+      { cls:"", label:"全項目完了", val:completeCount, unit:"名", foot:(zeroCount?"未着手 "+zeroCount+" 名":"未着手なし"), bar:people.length?Math.round(completeCount/people.length*100):0, c:"var(--good)" }
+    ];
+    $("kpis").innerHTML = kpis.map(function (k) {
+      return '<div class="kpi '+k.cls+'"><div class="label">'+k.label+'</div><div class="val tnum">'+k.val+'<small>'+k.unit+'</small></div><div class="foot tnum">'+k.foot+'</div><div class="spark"><i style="width:'+k.bar+'%;background:'+k.c+'"></i></div></div>';
+    }).join("");
+
+    // フォーム別
+    $("formList").innerHTML = forms.map(function (f) {
+      var statusTag = f.overdue ? '<span class="tag over">期限超過</span>' : '<span class="tag soon">期限前</span>';
+      if (f.rate >= 100) statusTag = '<span class="tag ok">完了</span>';
+      var bc = f.rate>=100 ? "var(--good)" : (f.rate>=60 ? "var(--accent)" : (f.overdue?"var(--crit)":"var(--warn)"));
+      return '<div class="form-row"><div class="r1"><span class="fname">'+esc(f.name)+'</span>'+
+        (f.type?'<span class="tag type">'+esc(f.type)+'</span>':'')+statusTag+
+        '<span class="rate tnum" style="color:'+bc+'">'+f.rate+'<span style="font-size:12px">%</span></span></div>'+
+        '<div class="bar"><i style="width:'+f.rate+'%;background:'+bc+'"></i></div>'+
+        '<div class="r2 tnum"><span><span class="swatch" style="background:'+bc+'"></span>回答済 <b>'+f.done+'</b></span>'+
+        '<span>未回答 <b>'+f.notdone+'</b></span><span>期日 <b>'+mmdd(f.due)+'</b></span>'+
+        (f.last?'<span>最終回答 '+esc(f.last)+'</span>':'')+'</div></div>';
+    }).join("");
+
+    // 要対応
+    var overGroups = [], soonGroups = [];
+    forms.forEach(function (f, i) {
+      var members = people.filter(function (p) { return p.r[i] === 0; });
+      if (!members.length) return;
+      (f.overdue ? overGroups : soonGroups).push({ form: f, members: members });
+    });
+    $("actionCount").textContent = "計 " + totalMissing + " 件";
+    function renderGroup(title, cls, groups) {
+      if (!groups.length) return "";
+      var head = '<div class="grp-head" style="padding-top:4px;"><span class="tag '+cls+'">'+title+'</span></div>';
+      return head + groups.map(function (fg) {
+        var emails = fg.members.map(function (m) { return m.email; }).filter(Boolean).join(", ");
+        var chips = fg.members.map(function (m) {
+          return '<span class="person-chip"><span class="ini" style="background:'+colorFor(m.name)+'">'+esc(initial(m.name))+'</span>'+esc(m.name)+'</span>';
+        }).join("");
+        return '<div class="grp"><div class="grp-head"><span class="gt">'+esc(fg.form.name)+'</span>'+
+          '<span class="cnt tnum">'+fg.members.length+' 名 ・ 期日 '+mmdd(fg.form.due)+'</span>'+
+          (emails?'<span class="copy"><button data-emails="'+esc(emails)+'" data-count="'+fg.members.length+'">✉ メール一括コピー</button></span>':'')+
+          '</div><div class="chips">'+chips+'</div></div>';
+      }).join('<div class="divider"></div>');
+    }
+    var actionHtml = renderGroup("期限超過", "over", overGroups);
+    if (actionHtml && soonGroups.length) actionHtml += '<div class="divider"></div>';
+    actionHtml += renderGroup("要リマインド（期限前）", "soon", soonGroups);
+    $("actionList").innerHTML = actionHtml || '<div style="padding:24px 0;color:var(--ink-3);font-size:13px;text-align:center;">未回答者はいません 🎉</div>';
+
+    // マトリクス ヘッダ
+    var headHtml = '<th>氏名</th><th>実施率</th>';
+    forms.forEach(function (f) { headHtml += '<th class="c" title="期日 '+f.due+'">'+esc(f.name)+'</th>'; });
+    $("matrixHead").innerHTML = headHtml;
+    $("matrixNote").textContent = people.length + " 名";
+    renderMatrix();
+  }
+
+  function passFilter(p) {
+    if (state.filter === "incomplete" && p.rate === 100) return false;
+    if (state.filter === "zero" && p.rate !== 0) return false;
+    if (state.filter === "complete" && p.rate !== 100) return false;
+    if (state.q && p.name.indexOf(state.q) === -1) return false;
+    return true;
+  }
+  function renderMatrix() {
+    var forms = DATA.forms;
+    var out = "", shown = 0;
+    DATA.people.forEach(function (p) {
+      if (!passFilter(p)) return;
+      shown++;
+      var cells = p.r.map(function (v, i) {
+        if (v === 1) return '<td class="c"><span class="status-dot sd-done" title="回答済">✓</span></td>';
+        if (v === null) return '<td class="c"><span class="status-dot sd-na" title="対象外">·</span></td>';
+        var cls = forms[i].overdue ? "sd-over" : "sd-soon";
+        var t = forms[i].overdue ? "未回答（期限超過）" : "未回答（要リマインド）";
+        return '<td class="c"><span class="status-dot '+cls+'" title="'+t+'">−</span></td>';
+      }).join("");
+      out += '<tr><td><div class="name-cell"><span class="ini" style="background:'+colorFor(p.name)+'">'+esc(initial(p.name))+'</span>'+esc(p.name)+'</div></td>'+
+        '<td class="rate-cell"><div class="rb"><span class="track"><i style="width:'+p.rate+'%;background:'+rateColor(p.rate)+'"></i></span><span class="pct tnum" style="color:'+rateColor(p.rate)+'">'+p.rate+'%</span></div></td>'+cells+'</tr>';
+    });
+    if (!shown) out = '<tr class="empty-row"><td colspan="'+(2+DATA.forms.length)+'">該当する内定者がいません</td></tr>';
+    $("matrixBody").innerHTML = out;
+  }
+
+  // ---- イベント ----
+  $("searchBox").addEventListener("input", function (e) { state.q = e.target.value.trim(); renderMatrix(); });
+  Array.prototype.forEach.call($("filterSegs").querySelectorAll("button"), function (b) {
+    b.addEventListener("click", function () {
+      state.filter = b.getAttribute("data-f");
+      Array.prototype.forEach.call($("filterSegs").querySelectorAll("button"), function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      renderMatrix();
+    });
+  });
+  $("reloadBtn").addEventListener("click", load);
+
+  var toast = $("toast"), toastTimer;
+  function showToast(msg){ toast.textContent=msg; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},2200); }
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest("button[data-emails]") : null;
+    if (!btn) return;
+    var emails = btn.getAttribute("data-emails"), n = btn.getAttribute("data-count");
+    function done(){ showToast("✅ "+n+" 件のメールアドレスをコピーしました"); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(emails).then(done, function(){ fallback(emails); done(); });
+    else { fallback(emails); done(); }
+  });
+  function fallback(text){ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch(e){} document.body.removeChild(ta); }
+
+  var themeBtn = $("themeBtn"), order=["system","light","dark"], labels={system:"◐ 自動",light:"☀ ライト",dark:"☾ ダーク"}, cur="system";
+  try { var s=localStorage.getItem("cs-follow-theme"); if(s)cur=s; } catch(e){}
+  function applyTheme(){ if(cur==="system")document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme",cur); themeBtn.textContent=labels[cur]; try{localStorage.setItem("cs-follow-theme",cur);}catch(e){} }
+  themeBtn.addEventListener("click", function(){ cur=order[(order.indexOf(cur)+1)%order.length]; applyTheme(); });
+  applyTheme();
+
+  load();
+})();
+</script>
+</body>
+</html>
